@@ -17,6 +17,7 @@ public class AppDbContext : IdentityDbContext<AppUser>
 
     protected override void OnModelCreating(ModelBuilder builder)
     {
+        
         // SEED NEWS SITES DATA INFO HERE
 
         List<IdentityRole> RolesList = new List<IdentityRole>
