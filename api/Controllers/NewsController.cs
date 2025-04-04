@@ -64,17 +64,7 @@ public class NewsController : Controller
         try
         {
             if(!ModelState.IsValid) return BadRequest();
-            /*
-
-            await _driver.Navigate().GoToUrlAsync("https://www.lanacion.com.ar/buscador/?query=adorni");
-            IWebElement element = _driver.FindElement(By.ClassName("queryly_item_row"));
-
-            string link = element.FindElement(By.TagName("a")).GetAttribute("href").ToString();
-            string title = element.FindElement(By.ClassName("queryly_item_title")).Text;
-
-            return Ok(new string[] {link, title});
-
-            */
+            
             List<NewsSiteModel> AllNewsSites = await _dbContext.NewsSite.Where(site => 
                 site.IsSearchHttpGetBased == true &&
                 site.ContainerClassName != null &&
