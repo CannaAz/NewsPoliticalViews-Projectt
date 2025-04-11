@@ -4,7 +4,6 @@ public record class NewUserResponseDto
 (
     string Username,
     string Email,
-
     string Token
 );
 

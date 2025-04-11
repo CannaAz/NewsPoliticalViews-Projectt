@@ -47,7 +47,7 @@ builder.Services.AddSwaggerGen(option =>
 });
 
 var ConnectionStr = builder.Configuration.GetConnectionString("DatabaseConnectionStr") 
-?? throw new InvalidOperationException("Connection string 'MvcTrainingHelperContext' not found.");
+?? throw new InvalidOperationException("Connection string 'DatabaseConnectionStr' not found.");
 
 if(builder.Environment.IsDevelopment())
 {

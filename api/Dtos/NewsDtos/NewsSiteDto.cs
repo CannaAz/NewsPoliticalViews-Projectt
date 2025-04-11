@@ -3,5 +3,6 @@
 public record class NewsSiteDto
 (
     string NewsSiteName,
+    string NewsSitePolitical,
     string NewsSiteUrl
 );

@@ -16,7 +16,6 @@ namespace api.Controllers;
 public class NewsController : Controller
 {
     private readonly IWebDriver _driver;
-
     private readonly AppDbContext _dbContext;
 
     public NewsController(IWebDriver driver, AppDbContext context)
@@ -25,30 +24,52 @@ public class NewsController : Controller
         _dbContext = context;
     }
 
-
-    [HttpGet("GetInfoFromNewsSites")]
-    public async Task<IActionResult> GetInfoFromNewsSites(string query)
+    // Gets the news from all sites that will appear if you searched the same query in them
+    [HttpGet("GetNewsFromAllSites")]
+    public async Task<IActionResult> GetFullInfo(string query)
     {
         try
         {
             if(!ModelState.IsValid) return BadRequest();
-
-            List<NewsSiteModel> NewsSitesList = await _dbContext.NewsSite.Where(site => 
+            
+            List<NewsSiteModel> AllNewsSites = await _dbContext.NewsSite.Where(site => 
                 site.IsSearchHttpGetBased == true &&
                 site.SiteUrlQueryString != null
             ).ToListAsync();
 
-            List<string> TitlesList = new List<string>();
-
-            foreach(NewsSiteModel NewsSite in NewsSitesList)
+            List<NewsInfoDto> AllInfo = new List<NewsInfoDto>();
+            NewsSiteSearchInfoModel InfoModel = new NewsSiteSearchInfoModel();
+            
+            foreach(NewsSiteModel NewsSite in AllNewsSites)
             {
                 await _driver.Navigate().GoToUrlAsync(NewsSite.SiteUrlQueryString + query);
-                var ElementsSearched = _driver.FindElement(By.ClassName(NewsSite.TitleClassName));
+                InfoModel = await _dbContext.NewsSiteSearchInfo.FirstOrDefaultAsync(info => info.NewsSiteName == NewsSite.NewSiteName && info.isMainSiteNews == false);
 
-                TitlesList.Add($"{NewsSite.NewSiteName}: {ElementsSearched.Text}");
+                IWebElement element = _driver.FindElement(By.ClassName(InfoModel.NewsContainerClassName));
+
+
+                string? title = InfoModel.TitleClassName != null ? element.FindElement(By.ClassName(InfoModel.TitleClassName)).Text : "";
+                string? descriptiom = InfoModel.DescriptionClassName != null ? element.FindElement(By.ClassName(InfoModel.DescriptionClassName)).Text : "";
+
+                string? url = element.FindElement(By.TagName("a")).GetAttribute("href").ToString() ?? "Url Not Found";
+                string? ImageUrl = InfoModel.NewsImageClassName != null ? element.FindElement(By.TagName("img")).GetAttribute("src").ToString() : "" ;
+
+                
+
+                NewsInfoDto NewsDto = new NewsInfoDto
+                (
+                    InfoModel.NewsSiteName,
+                    title,
+                    descriptiom,
+                    url,
+                    ImageUrl,
+                    NewsSite.PoliticalLeaning
+                );
+
+                AllInfo.Add(NewsDto);
             }
 
-            return Ok(TitlesList);
+            return Ok(AllInfo);
         }catch(Exception ex)
         {
             Console.WriteLine("An error has ocurred: \n");
@@ -58,8 +79,9 @@ public class NewsController : Controller
         }
     }
 
-    [HttpGet("GetFullInfo")]
-    public async Task<IActionResult> GetFullInfo(string query)
+    // basically get the first news that appear in the news sites and returns them to the user
+    [HttpGet("CurrentlyImportant")]
+    public async Task<IActionResult> CurrentlyImportant()
     {
         try
         {
@@ -67,29 +89,39 @@ public class NewsController : Controller
             
             List<NewsSiteModel> AllNewsSites = await _dbContext.NewsSite.Where(site => 
                 site.IsSearchHttpGetBased == true &&
-                site.ContainerClassName != null &&
-                site.TitleClassName != null &&
                 site.SiteUrlQueryString != null
             ).ToListAsync();
 
-            List<List<string>> AllInfo = new List<List<string>>();
+            List<NewsInfoDto> AllInfo = new List<NewsInfoDto>();
+            NewsSiteSearchInfoModel InfoModel = new NewsSiteSearchInfoModel();
             
             foreach(NewsSiteModel NewsSite in AllNewsSites)
             {
-                await _driver.Navigate().GoToUrlAsync(NewsSite.SiteUrlQueryString + query);
-                IWebElement element = _driver.FindElement(By.ClassName(NewsSite.ContainerClassName));
+                await _driver.Navigate().GoToUrlAsync(NewsSite.Siteurl);
+                InfoModel = await _dbContext.NewsSiteSearchInfo.FirstOrDefaultAsync(info => info.NewsSiteName == NewsSite.NewSiteName && info.isMainSiteNews == true);
 
-                string title = element.FindElement(By.ClassName(NewsSite.TitleClassName)).Text ?? "Unable to find the title";
-                string url = element.FindElement(By.TagName("a")).GetAttribute("href").ToString() ?? "Url Not Found";
 
-                
+                IWebElement element = _driver.FindElement(By.ClassName(InfoModel.NewsContainerClassName));
 
-                List<string> burnerList = new List<string>
-                {
-                   NewsSite.NewSiteName ,title , url
-                };
+    
+                string? title = InfoModel.TitleClassName != null ? element.FindElement(By.ClassName(InfoModel.TitleClassName)).Text : "";
+                string? descriptiom = InfoModel.DescriptionClassName != null ? element.FindElement(By.ClassName(InfoModel.DescriptionClassName)).Text : "";
 
-                AllInfo.Add(burnerList);
+                string? url = element.FindElement(By.TagName("a")).GetAttribute("href").ToString() ?? "Url Not Found";
+                string? ImageUrl = InfoModel.NewsImageClassName != null ? element.FindElement(By.TagName("img")).GetAttribute("src").ToString() : "" ;
+
+                NewsInfoDto NewsDto = new NewsInfoDto
+                (
+                    InfoModel.NewsSiteName,
+                    title,
+                    descriptiom,
+                    url,
+                    ImageUrl,
+                    NewsSite.PoliticalLeaning
+                );
+
+
+                AllInfo.Add(NewsDto);
             }
 
             return Ok(AllInfo);
@@ -108,7 +140,7 @@ public class NewsController : Controller
         if(!ModelState.IsValid) return BadRequest();
 
         List<NewsSiteDto> NewsSitesList = await _dbContext.NewsSite.Select( 
-            site => new NewsSiteDto(site.NewSiteName, site.Siteurl)
+            site => new NewsSiteDto(site.NewSiteName, site.PoliticalLeaning ,site.Siteurl)
         ).ToListAsync();
 
         return Ok(NewsSitesList);
@@ -121,7 +153,7 @@ public class NewsController : Controller
 
         List<NewsSiteDto> NewsSitesList = await _dbContext.NewsSite
         .Where(site => site.PoliticalLeaning == political)
-        .Select(site => new NewsSiteDto(site.NewSiteName, site.Siteurl))
+        .Select(site => new NewsSiteDto(site.NewSiteName, site.PoliticalLeaning, site.Siteurl))
         .ToListAsync();
 
         if(NewsSitesList.IsNullOrEmpty()) return NotFound("We don't have a news site of that political leaning yet");
